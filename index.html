@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Startlån & tilskudd i Bergen — interaktiv boligkalkulator</title>
+<meta name="description" content="Uoffisiell, interaktiv kalkulator for startlån og tilskudd fra Husbanken/Bergen kommune. Juster inntekt, rente og lånebeløp og se effekten live.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   Inspirert av Bryggen i Bergen: dyp fjordblågrønn, varm okerfarge
+   fra trehusene, mose-grønn og teglrød. Ikke generisk "finance blue".
+   ============================================================ */
+:root{
+  --fjord-900:#11272D;
+  --fjord-800:#16323A;
+  --fjord-700:#1F454E;
+  --fjord-600:#2C5C66;
+  --fjord-100:#E4EEEF;
+  --ochre-600:#C68A35;
+  --ochre-500:#D9A24E;
+  --ochre-100:#F6E6CB;
+  --brick-600:#9C4632;
+  --brick-100:#F2DDD5;
+  --moss-600:#52734F;
+  --moss-100:#E2EBDD;
+  --paper:#EFEAE0;
+  --paper-raised:#F8F5EC;
+  --ink:#20242A;
+  --ink-soft:#5B6168;
+  --line:#D9D1BD;
+  --radius:14px;
+  --shadow:0 2px 10px rgba(17,39,45,.08), 0 8px 30px rgba(17,39,45,.06);
+  --font-display:"Fraunces", serif;
+  --font-body:"IBM Plex Sans", system-ui, sans-serif;
+  --font-mono:"IBM Plex Mono", "SFMono-Regular", monospace;
+}
+@media (prefers-reduced-motion: no-preference){
+  .reveal{ opacity:0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+  .reveal.in{ opacity:1; transform:none; }
+}
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--font-body); line-height:1.5; font-size:16px;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{ font-family:var(--font-display); font-weight:600; margin:0 0 .3em; color:var(--fjord-900); letter-spacing:-.01em; }
+h1{ font-size:clamp(1.8rem,4vw,2.7rem); font-weight:700; }
+h2{ font-size:clamp(1.35rem,2.6vw,1.8rem); }
+h3{ font-size:1.05rem; font-family:var(--font-body); font-weight:700; color:var(--fjord-800); text-transform:none; }
+p{ margin:.4em 0 .9em; color:var(--ink-soft); max-width:62ch; }
+a{ color:var(--fjord-700); text-decoration-color:var(--ochre-500); text-decoration-thickness:2px; }
+.mono, input, select, .num{ font-family:var(--font-mono); }
+.wrap{ max-width:1180px; margin:0 auto; padding:0 24px; }
+.eyebrow{ font-family:var(--font-mono); font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ochre-600); font-weight:600; }
+
+/* ---------- Topbar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:50; background:var(--fjord-900); color:#fff;
+  border-bottom:3px solid var(--ochre-600);
+}
+.topbar .wrap{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 24px; }
+.brand{ display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:1.05rem; }
+.brand .dot{ width:10px;height:10px;border-radius:50%; background:var(--ochre-500); box-shadow:0 0 0 3px rgba(217,162,78,.25); }
+.badge-pill{
+  display:flex; align-items:center; gap:10px; background:var(--fjord-700); border:1px solid rgba(255,255,255,.12);
+  border-radius:999px; padding:6px 14px; font-size:.85rem; white-space:nowrap;
+}
+.badge-pill .label{ color:rgba(255,255,255,.65); }
+.badge-pill .val{ font-family:var(--font-mono); font-weight:600; }
+.status-dot{ width:10px;height:10px;border-radius:50%; flex:none; transition:background .3s; }
+
+/* ---------- Hero ---------- */
+.hero{ background:linear-gradient(180deg, var(--fjord-900), var(--fjord-800) 60%, var(--fjord-700)); color:#fff; padding:48px 0 64px; position:relative; overflow:hidden; }
+.hero:after{ content:""; position:absolute; inset:auto 0 0 0; height:90px; background:
+   linear-gradient(180deg, transparent, var(--paper) 92%); }
+.hero .wrap{ display:grid; grid-template-columns:1.1fr .9fr; gap:40px; align-items:end; position:relative; z-index:1; }
+.hero p.lead{ color:rgba(255,255,255,.82); font-size:1.05rem; max-width:48ch; }
+.hero h1 span{ color:var(--ochre-500); }
+.hero .tags{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+.hero .tag{ font-size:.78rem; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:4px 11px; color:rgba(255,255,255,.85); }
+
+/* ---- Finansieringsbevis card (signature element) ---- */
+.fbevis{
+  background:var(--paper-raised); color:var(--ink); border-radius:18px; padding:22px 24px 18px;
+  box-shadow:var(--shadow); border:1px solid var(--line); position:relative;
+}
+.fbevis::before{
+  content:""; position:absolute; top:0; left:24px; right:24px; height:6px; border-radius:0 0 8px 8px;
+  background:repeating-linear-gradient(90deg, var(--ochre-600) 0 14px, var(--brick-600) 14px 28px);
+}
+.fbevis .top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-top:6px;}
+.fbevis .kicker{ font-family:var(--font-mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); }
+.fbevis .title{ font-family:var(--font-display); font-weight:700; font-size:1.15rem; color:var(--fjord-900); }
+.fbevis .seal{ width:54px;height:54px;border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex:none; border:2px dashed currentColor; transition:.3s; }
+.fbevis .grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; margin-top:16px; }
+.fbevis .stat .l{ font-size:.74rem; color:var(--ink-soft); }
+.fbevis .stat .v{ font-family:var(--font-mono); font-weight:600; font-size:1.18rem; color:var(--fjord-900); }
+.fbevis .statusline{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); font-size:.86rem; font-weight:600; }
+
+/* ---------- Sections ---------- */
+section.panel{ padding:46px 0; }
+section.panel + section.panel{ border-top:1px solid var(--line); }
+.panel-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:22px;}
+.card{ background:var(--paper-raised); border:1px solid var(--line); border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow); }
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; }
+@media (max-width:880px){ .grid2,.grid3{ grid-template-columns:1fr; } .hero .wrap{ grid-template-columns:1fr; } }
+
+/* ---------- Form controls ---------- */
+label.fl{ display:block; font-size:.82rem; font-weight:600; color:var(--fjord-800); margin-bottom:5px; }
+.hint{ font-size:.76rem; color:var(--ink-soft); margin-top:4px; }
+input[type=number], input[type=text]{
+  width:100%; padding:9px 10px; border:1.5px solid var(--line); border-radius:9px; background:#fff;
+  font-size:.95rem; color:var(--ink);
+}
+input[type=number]:focus, input[type=text]:focus, input[type=range]:focus-visible, button:focus-visible, .seg button:focus-visible{
+  outline:3px solid var(--ochre-500); outline-offset:1px;
+}
+input[type=range]{ width:100%; accent-color:var(--ochre-600); height:22px; }
+.row{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+.field{ flex:1; min-width:150px; }
+.seg{ display:inline-flex; border:1.5px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; }
+.seg button{ border:none; background:transparent; padding:8px 14px; font-size:.86rem; cursor:pointer; font-weight:600; color:var(--ink-soft); font-family:var(--font-body); }
+.seg button + button{ border-left:1.5px solid var(--line); }
+.seg button.active{ background:var(--fjord-800); color:#fff; }
+.toggle-pill{ display:inline-flex; gap:6px; align-items:center; cursor:pointer; font-size:.84rem; font-weight:600; color:var(--ink-soft); user-select:none;}
+.toggle-pill input{ accent-color:var(--ochre-600); width:16px; height:16px; }
+fieldset{ border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:0; }
+legend{ font-weight:700; font-size:.88rem; padding:0 6px; color:var(--fjord-800); }
+button.btn{
+  background:var(--ochre-600); color:#fff; border:none; border-radius:10px; padding:9px 16px; font-weight:700;
+  font-family:var(--font-body); cursor:pointer; font-size:.86rem;
+}
+button.btn.ghost{ background:transparent; color:var(--fjord-800); border:1.5px solid var(--line); }
+button.btn:hover{ filter:brightness(1.07); }
+.presets{ display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ---------- Person income block ---------- */
+.person-block{ border:1.5px solid var(--line); border-radius:12px; padding:16px; background:#fff; }
+.person-block + .person-block{ margin-top:14px; }
+.person-block h4{ margin:0 0 10px; font-size:.92rem; color:var(--fjord-800); display:flex; align-items:center; gap:8px;}
+.person-block h4 .n{ background:var(--fjord-800); color:#fff; width:22px;height:22px;border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.74rem; font-family:var(--font-mono); }
+.derived{ margin-top:10px; background:var(--paper); border-radius:9px; padding:10px 12px; font-size:.84rem; display:flex; flex-wrap:wrap; gap:14px 22px; }
+.derived b{ font-family:var(--font-mono); color:var(--fjord-900); }
+
+/* ---------- Stat strip ---------- */
+.statstrip{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+@media (max-width:880px){ .statstrip{ grid-template-columns:repeat(2,1fr); } }
+.statbox{ background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+.statbox .l{ font-size:.74rem; color:var(--ink-soft); margin-bottom:4px;}
+.statbox .v{ font-family:var(--font-mono); font-weight:700; font-size:1.25rem; color:var(--fjord-900); }
+.statbox .v.small{ font-size:1.0rem; }
+.statbox .sub{ font-size:.76rem; color:var(--ink-soft); margin-top:2px; }
+
+/* ---------- Chart cards ---------- */
+.chart-card canvas{ max-height:300px; }
+.chart-card h3{ margin-bottom:2px; }
+.chart-card .sub{ font-size:.83rem; color:var(--ink-soft); margin-bottom:10px;}
+.legend-row{ display:flex; gap:16px; flex-wrap:wrap; font-size:.78rem; margin-top:10px; color:var(--ink-soft); }
+.legend-row span{ display:inline-flex; align-items:center; gap:6px; }
+.swatch{ width:10px;height:10px;border-radius:3px; display:inline-block; }
+
+/* ---------- Comparison table ---------- */
+table.cmp{ width:100%; border-collapse:collapse; font-size:.88rem; }
+table.cmp th, table.cmp td{ text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }
+table.cmp th{ font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+table.cmp td.num{ font-family:var(--font-mono); font-weight:600; }
+table.cmp tr.best td{ background:var(--moss-100); }
+table.cmp tr.current td{ box-shadow:inset 3px 0 0 var(--ochre-600); }
+
+/* ---------- Checklist ---------- */
+ul.checklist{ list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+ul.checklist li{ display:flex; gap:10px; align-items:flex-start; font-size:.92rem; background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+ul.checklist .ic{ flex:none; width:22px; text-align:center; font-weight:700; }
+.ic.ok{ color:var(--moss-600); }
+.ic.warn{ color:var(--ochre-600); }
+.ic.bad{ color:var(--brick-600); }
+ul.checklist .txt b{ display:block; font-size:.93rem; }
+ul.checklist .txt span{ font-size:.82rem; color:var(--ink-soft); }
+ul.plain{ padding-left:1.1em; font-size:.88rem; color:var(--ink-soft); }
+ul.plain li{ margin-bottom:5px; }
+
+/* ---------- Glossary ---------- */
+details.gl{ border:1px solid var(--line); border-radius:10px; padding:10px 14px; background:#fff; margin-bottom:8px; }
+details.gl summary{ cursor:pointer; font-weight:700; color:var(--fjord-800); font-size:.92rem; }
+details.gl p{ margin:.5em 0 0; font-size:.87rem; }
+.infobox{ background:var(--fjord-100); border-left:4px solid var(--fjord-700); border-radius:0 10px 10px 0; padding:12px 16px; font-size:.86rem; color:var(--fjord-900); }
+.infobox.amber{ background:var(--ochre-100); border-left-color:var(--ochre-600); }
+.infobox p{ color:var(--fjord-900); margin:.3em 0; }
+
+footer{ background:var(--fjord-900); color:rgba(255,255,255,.78); padding:36px 0 26px; font-size:.84rem; }
+footer a{ color:var(--ochre-500); }
+footer h3{ color:#fff; }
+.kilder{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px 28px; padding-left:1.1em; }
+@media (max-width:880px){ .kilder{ grid-template-columns:1fr; } }
+
+.skip-anchor{ position:absolute; left:-9999px; }
+@media print{ .topbar, .hero{ display:none; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> Startlån&nbsp;Bergen</div>
+    <div class="badge-pill" id="topStatus">
+      <span class="status-dot" id="topDot" style="background:#9aa7a6"></span>
+      <span class="label">Status:</span> <span class="val" id="topStatusText">Fyll inn opplysninger</span>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow" style="color:var(--ochre-500)">Uoffisielt hjelpemiddel · Bergen kommune</div>
+      <h1>Forstå <span>startlån &amp; tilskudd</span> før du kjøper bolig</h1>
+      <p class="lead">Juster inntekt, rente og lånebeløp og se umiddelbart hva det betyr for deg — om du sannsynligvis kvalifiserer til startlån og tilskudd fra Husbanken/Bergen kommune, eller om vanlig bank er løsningen. Bygget for folk som aldri har kjøpt bolig før.</p>
+      <div class="tags">
+        <span class="tag">Startlån (ordinært &amp; førstegangsetablerer)</span>
+        <span class="tag">Tilskudd til etablering</span>
+        <span class="tag">Privat boliglån</span>
+        <span class="tag">Brutto/netto-hjelp</span>
+      </div>
+    </div>
+    <div class="fbevis reveal" id="fbevisCard">
+      <div class="top">
+        <div>
+          <div class="kicker">Din situasjon · oppdateres live</div>
+          <div class="title">Finansieringsbevis (simulert)</div>
+        </div>
+        <div class="seal" id="sealIcon" style="color:#9aa7a6;">?</div>
+      </div>
+      <div class="grid">
+        <div class="stat"><div class="l">Husholdningsinntekt (brutto/år)</div><div class="v" id="fbInntekt">–</div></div>
+        <div class="stat"><div class="l">Ønsket kjøpesum</div><div class="v" id="fbKjopesum">–</div></div>
+        <div class="stat"><div class="l">Lånebeløp etter egenkapital</div><div class="v" id="fbLaan">–</div></div>
+        <div class="stat"><div class="l">Anslått terminbeløp / mnd</div><div class="v" id="fbTermin">–</div></div>
+      </div>
+      <div class="statusline" id="fbStatusLine" style="color:var(--ink-soft)">Fyll ut feltene under for å se en vurdering.</div>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <!-- ================= HUSHOLDNING & INNTEKT ================= -->
+  <section class="panel reveal" id="husholdning">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">1 · Underordnet moment</div>
+        <h2>Husholdning og inntekt</h2>
+        <p>Bergen kommunes inntektsgrenser avhenger av hvor mange voksne og barn som søker sammen. Legg inn lønn for én eller to personer — i hvilken periode du selv vet den best (time, uke, måned eller år).</p>
+      </div>
+      <div class="presets">
+        <button class="btn ghost" data-preset="solo">Eksempel: enslig</button>
+        <button class="btn ghost" data-preset="par0">Eksempel: par uten barn</button>
+        <button class="btn ghost" data-preset="par1">Eksempel: par med barn</button>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:18px;">
+      <div class="card">
+        <label class="fl">Antall voksne søkere</label>
+        <div class="seg" id="segAdults">
+          <button data-v="1" aria-pressed="false">1 voksen</button><button data-v="2" class="active" aria-pressed="true">2 voksne</button>
+        </div>
+        <p class="hint">Ektefeller, samboere og registrerte partnere må søke startlån sammen. Venner/familie uten parforhold kan ikke stå som medsøkere.</p>
+      </div>
+      <div class="card">
+        <label class="fl">Antall barn i husstanden</label>
+        <div class="seg" id="segChildren">
+          <button data-v="0" class="active" aria-pressed="true">0</button><button data-v="1" aria-pressed="false">1</button><button data-v="2" aria-pressed="false">2</button><button data-v="3" aria-pressed="false">3+</button>
+        </div>
+        <p class="hint">Husholdningstype akkurat nå: <b id="husholdLabel" class="mono">2 voksne</b></p>
+      </div>
+    </div>
+
+    <div id="personsWrap"></div>
+
+    <div class="grid2" style="margin-top:16px;">
+      <div class="card">
+        <label class="fl" for="annenInntekt">Annen inntekt per år (f.eks. barnetrygd)</label>
+        <input type="number" id="annenInntekt" value="0" min="0" step="1000">
+        <p class="hint">Bergen kommune kan inkludere barnetrygd i inntektsgrunnlaget. Valgfritt felt — la stå på 0 hvis ikke relevant.</p>
+      </div>
+      <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
+        <label class="fl">Samlet husholdningsinntekt (brutto/år)</label>
+        <div class="v mono" id="sumInntektBrutto" style="font-size:1.5rem; font-weight:700; color:var(--fjord-900);">–</div>
+        <div class="hint" id="sumInntektNetto">≈ – kr netto/år (estimat)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= BOLIG OG LÅN ================= -->
+  <section class="panel reveal" id="bolig">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">2 · Underordnet moment</div>
+        <h2>Bolig, egenkapital og lånetype</h2>
+        <p>Velg ønsket kjøpesum og hva du har i egenkapital. Lånetype avgjør hvilke regler som testes mot — privat bank (utlånsforskriften) eller startlån/tilskudd (Bergen kommunes retningslinjer).</p>
+      </div>
+    </div>
+    <div class="grid3">
+      <div class="card">
+        <label class="fl" for="kjopesum">Ønsket kjøpesum (kr, inkl. fellesgjeld)</label>
+        <input type="number" id="kjopesum" value="3500000" min="0" step="50000">
+      </div>
+      <div class="card">
+        <label class="fl" for="egenkapital">Egenkapital (kr)</label>
+        <input type="number" id="egenkapital" value="150000" min="0" step="10000">
+        <p class="hint" id="egenkapitalPct">= – % av kjøpesum</p>
+      </div>
+      <div class="card">
+        <label class="fl" for="annenGjeld">Annen gjeld i dag (studielån, billån, kreditt)</label>
+        <input type="number" id="annenGjeld" value="50000" min="0" step="5000">
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:18px;">
+      <div class="card">
+        <label class="fl">Lånetype</label>
+        <fieldset>
+          <legend>Hva vil du sjekke mot?</legend>
+          <div style="display:grid; gap:8px;">
+            <label class="toggle-pill"><input type="radio" name="laanetype" value="privat"> Vanlig boliglån i privat bank</label>
+            <label class="toggle-pill"><input type="radio" name="laanetype" value="startlan_ordinaert" checked> Ordinært startlån (Bergen kommune)</label>
+            <label class="toggle-pill"><input type="radio" name="laanetype" value="startlan_forstegang"> Startlån for førstegangsetablerere (min. 5 % egenkapital)</label>
+            <label class="toggle-pill"><input type="radio" name="laanetype" value="startlan_tilskudd"> Startlån kombinert med tilskudd til etablering</label>
+          </div>
+        </fieldset>
+      </div>
+      <div class="card">
+        <label class="fl" for="nedbetalingstid">Nedbetalingstid: <b class="mono" id="nedbetalingstidVal">30</b> år</label>
+        <input type="range" id="nedbetalingstid" min="5" max="50" step="1" value="30">
+        <p class="hint">Vanlig startlån: maks 30 år. Opp til 50 år kan gis i særlige tilfeller når startlån kombineres med tilskudd. Privat bank: vanligvis maks 30 år.</p>
+      </div>
+    </div>
+
+    <details style="margin-top:16px;">
+      <summary class="btn ghost" style="display:inline-block;">Avanserte parametre (grunnbeløp, livsopphold, arbeidstid)</summary>
+      <div class="grid3" style="margin-top:14px;">
+        <div class="card">
+          <label class="fl" for="gVerdi">Grunnbeløpet i folketrygden (G)</label>
+          <input type="number" id="gVerdi" value="136549" min="0" step="1">
+          <p class="hint">Gjeldende G fra 1. mai 2026. Inntektsgrensene under er G × en kommunal multiplikator, og oppdateres automatisk om du endrer G neste år.</p>
+        </div>
+        <div class="card">
+          <label class="fl" for="livsopphold">Andre utgifter / livsopphold (kr per måned)</label>
+          <input type="number" id="livsopphold" value="15000" min="0" step="500">
+          <p class="hint">Mat, transport, forsikring, strøm, mobil osv. — brukes til å beregne minimumsinntekten du trolig behøver. Bergen kommune bruker normalt et standardisert livsoppholdsbudsjett (se Boligkontoret) — juster selv etter egen situasjon.</p>
+        </div>
+        <div class="card">
+          <label class="fl" for="timerUkeGlobal">Standard arbeidstid (timer/uke) for timelønn</label>
+          <input type="number" id="timerUkeGlobal" value="37.5" min="1" max="60" step="0.5">
+          <p class="hint">Brukes når en person legger inn timelønn, for å regne om til år/måned/uke. Vanlig heltid i Norge er 37,5 t/uke.</p>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ================= RENTE ================= -->
+  <section class="panel reveal" id="rente">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">3 · Underordnet moment</div>
+        <h2>Rente — i dag og fremover</h2>
+        <p>Startlån i Bergen følger Husbankens rente + 0,25 prosentpoeng kommunalt påslag. Du kan velge flytende eller binde renten i 3, 5, 10 eller 20 år. Slå av/på for å se hvordan valget påvirker både dagens betaling og risikoen ved renteoppgang.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <label class="fl">Rentetype</label>
+        <div class="seg" id="segRente" style="flex-wrap:wrap;">
+          <button data-v="flytende" class="active" aria-pressed="true">Flytende</button>
+          <button data-v="fast3" aria-pressed="false">Fast 3 år</button>
+          <button data-v="fast5" aria-pressed="false">Fast 5 år</button>
+          <button data-v="fast10" aria-pressed="false">Fast 10 år</button>
+          <button data-v="fast20" aria-pressed="false">Fast 20 år</button>
+        </div>
+        <div style="margin-top:14px;">
+          <label class="fl" for="renteSlider">Rentesats du vil teste: <b class="mono" id="renteVal">4,28</b> %</label>
+          <input type="range" id="renteSlider" min="0.5" max="9" step="0.01" value="4.28">
+          <p class="hint" id="renteForslagHint">Forhåndsutfylt med Husbankens flytende rente + Bergens kommunale påslag (0,25 pp). Dra i glidebryteren for å teste andre nivåer.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Referanserenter (juli 2026)</h3>
+        <table class="cmp" style="font-size:.82rem;">
+          <tr><td>Husbanken — flytende</td><td class="num">4,03 %</td></tr>
+          <tr><td>Husbanken — fast 3 år</td><td class="num">4,69 %</td></tr>
+          <tr><td>Husbanken — fast 5 år</td><td class="num">4,62 %</td></tr>
+          <tr><td>Husbanken — fast 10 år</td><td class="num">4,50 %</td></tr>
+          <tr><td>Husbanken — fast 20 år</td><td class="num">4,78 %</td></tr>
+          <tr><td>Privat bank, snitt boliglån</td><td class="num">≈ 5,1 %</td></tr>
+        </table>
+        <div class="infobox amber" style="margin-top:12px;">
+          <p><b>Forventet utvikling:</b> Norges Bank har i 2026 holdt styringsrenten rundt 4,0–4,25 % med utsikter til ytterligere én–tre hevinger mot rundt 4,5 % mot slutten av 2026, før en gradvis nedgang ventet fra 2027. Husbankens og bankenes renter følger dette med 2–4 måneders forsinkelse. Fastrente kan gi forutsigbarhet hvis du tror renten skal opp.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= RESULTATER ================= -->
+  <section class="panel reveal" id="resultater">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">Overordnet bilde</div>
+        <h2>Resultater — hel, del og generell innvirkning</h2>
+        <p>Her samles alt: den totale vurderingen, effekten av enkeltdeler (inntekt vs. rente), og hvordan resultatet endrer seg generelt når du justerer en glidebryter.</p>
+      </div>
+    </div>
+
+    <div class="statstrip" style="margin-bottom:24px;">
+      <div class="statbox"><div class="l">Maks kjøpesum, privat bank</div><div class="v small" id="statMaksPrivat">–</div><div class="sub">10 % egenkapital + maks 5× inntekt</div></div>
+      <div class="statbox"><div class="l">Maks kjøpesum, startlån (Bergen)</div><div class="v small" id="statMaksStartlan">–</div><div class="sub">Veiledende tak for din husholdningsstørrelse</div></div>
+      <div class="statbox"><div class="l">Anslått tilskudd (om aktuelt)</div><div class="v small" id="statTilskudd">–</div><div class="sub">2–5,5 G normalt, opp til 7,5 G i særlige tilfeller</div></div>
+      <div class="statbox"><div class="l">Belåningsgrad for ditt valg</div><div class="v small" id="statBelaning">–</div><div class="sub">Lån ÷ kjøpesum</div></div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:24px;">
+      <div class="card chart-card">
+        <h3>Inntekt: minimum og maksimum</h3>
+        <div class="sub">Din inntekt sammenlignet med beregnet minimumsbehov og Bergen kommunes grenser for tilskudd og ordinært startlån — for husholdningstypen <b id="chartHHType" class="mono">2 voksne</b>.</div>
+        <canvas id="chartInntekt" height="220"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>Renteeffekt</h3>
+        <div class="sub">Hvordan terminbeløpet endrer seg med rentenivået, for lånebeløpet i ditt valgte alternativ.</div>
+        <canvas id="chartRente" height="220"></canvas>
+        <div class="legend-row">
+          <span><span class="swatch" style="background:var(--ochre-600)"></span> Ditt valgte nivå</span>
+          <span><span class="swatch" style="background:var(--brick-600)"></span> Stresstest (privat bank, +3 pp / min. 7 %)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card chart-card" style="margin-bottom:24px;">
+      <h3>Månedlig terminbeløp — sammenligning av låneform</h3>
+      <div class="sub">Samme kjøpesum og egenkapital, men ulik rente og regelverk. Tilskudd reduserer lånebeløpet og dermed terminbeløpet.</div>
+      <canvas id="chartManedlig" height="170"></canvas>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <h3>Detaljert sammenligning</h3>
+      <table class="cmp" id="cmpTable">
+        <thead><tr><th>Låneform</th><th>Rente</th><th>Lånebeløp</th><th>Mnd. terminbeløp</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= KRAV OG VILKÅR ================= -->
+  <section class="panel reveal" id="krav">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">Krav, begrensninger og anbefalinger</div>
+        <h2>Sjekkliste — hvor står du?</h2>
+        <p>Basert på det du har lagt inn. De første punktene oppdateres live; de siste er generelle dokumentasjonskrav som alltid gjelder.</p>
+      </div>
+    </div>
+    <ul class="checklist" id="checklist"></ul>
+
+    <div class="card" style="margin-top:18px;">
+      <h3>Dokumentasjon du normalt må legge frem</h3>
+      <ul class="plain">
+        <li>Skattemelding for forrige år</li>
+        <li>Arbeidskontrakt og/eller vedtak om trygd</li>
+        <li>Dokumentasjon på all inntekt de siste tre månedene</li>
+        <li>Oversikt over all gjeld + utskrift fra Gjeldsregisteret</li>
+        <li>Dokumentasjon på oppspart egenkapital/formue</li>
+        <li>Lånetilbud eller avslag fra privat bank (minst 3 banker for førstegangsetablerer-lånet)</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= LÆR MER ================= -->
+  <section class="panel reveal" id="laer">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">Lavest mulig brukerterskel</div>
+        <h2>Lær deg begrepene</h2>
+        <p>Ny på boligmarkedet? Disse korte forklaringene dekker det du trenger for å forstå resten av siden.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div>
+        <details class="gl" open><summary>Brutto vs. netto lønn</summary><p><b>Brutto</b> er lønnen før skatt. <b>Netto</b> er det du faktisk får utbetalt på konto, etter skatt og trygdeavgift. Denne siden regner brutto om til et <i>anslått</i> netto-tall automatisk basert på 2026-satser, og motsatt hvis du legger inn netto. Bruk skatteetaten.no for en helt nøyaktig beregning.</p></details>
+        <details class="gl"><summary>Startlån</summary><p>Et boliglån fra kommunen (finansiert av Husbanken) for de som ikke får tilstrekkelig lån i vanlig bank. Krever vanligvis ikke egenkapital, kan dekke opptil 100 % av kjøpesummen, og kan nedbetales over lengre tid enn et privat lån.</p></details>
+        <details class="gl"><summary>Tilskudd til etablering</summary><p>Et rente- og avdragsfritt "lån" fra kommunen til varig vanskeligstilte husstander med inntekt under en lavere grense enn for startlån. Skal betales tilbake i sin helhet når boligen selges eller du flytter — det er altså ikke en gave, men en utskutt egenkapital.</p></details>
+        <details class="gl"><summary>Egenkapital</summary><p>Pengene du selv skyter inn ved boligkjøp, i tillegg til lånet. Ved vanlig boliglån kreves normalt minst 10 % av kjøpesummen i egenkapital.</p></details>
+      </div>
+      <div>
+        <details class="gl"><summary>Gjeldsgrad</summary><p>Summen av all gjeld (boliglån + annen gjeld) delt på brutto årsinntekt. Private banker krever vanligvis at dette ikke overstiger 5×.</p></details>
+        <details class="gl"><summary>Belåningsgrad</summary><p>Lånebeløpet delt på boligens verdi/kjøpesum, vist i prosent. Høy belåningsgrad betyr lite egenkapital og dermed høyere risiko.</p></details>
+        <details class="gl"><summary>Stresstest</summary><p>Banken sjekker om du tåler at renten stiger med 3 prosentpoeng (eller minst 7 %, det som er høyest) før de godkjenner lånet. Kommunen gjør en lignende, men mer individuell vurdering for startlån.</p></details>
+        <details class="gl"><summary>Grunnbeløpet (G)</summary><p>Et beløp som justeres av Stortinget hvert år 1. mai, og som mange offentlige grenser (som Bergens inntektsgrenser for startlån) er bygget opp av. Fra 1. mai 2026 er G = 136 549 kr.</p></details>
+        <details class="gl"><summary>Flytende vs. fast rente</summary><p>Flytende rente endrer seg med markedet (hver 2. måned for Husbanken). Fast rente låses for en periode (3/5/10/20 år) og gir forutsigbarhet, men du kan ikke gå ut av avtalen før perioden er over.</p></details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <h3>Kilder og forbehold</h3>
+    <p style="color:rgba(255,255,255,.7); max-width:80ch;">Dette er et <b>uoffisielt</b> hjelpemiddel laget for å illustrere hvordan startlån, tilskudd og vanlige boliglån fungerer. Det er ikke laget av, og ikke tilknyttet, Husbanken eller Bergen kommune, og gir ikke finansiell rådgivning. Alle grenser, satser og beløp er veiledende og kan være endret siden siste oppdatering — sjekk alltid med <a href="https://www.husbanken.no/person/startlaan/" target="_blank" rel="noopener">Husbanken</a> eller <a href="https://www.bergen.kommune.no/innbyggerhjelpen/bolig-og-sosiale-tjenester/okonomisk-stotte-og-radgivning/boligfinansiering/startlan-og-tilskudd-for-a-kjope-eller-beholde-bolig" target="_blank" rel="noopener">Boligkontoret i Bergen kommune</a> før du tar beslutninger.</p>
+    <ul class="kilder">
+      <li>Husbanken — rentesider og veileder for startlån (husbanken.no)</li>
+      <li>Bergen kommune — Retningslinjer for startlån, tilskudd til etablering, tilpasning og prosjektering/utredning (vedtatt 13.03.2025)</li>
+      <li>NAV — grunnbeløpet i folketrygden, gjeldende fra 1. mai 2026</li>
+      <li>Skatteetaten — satser for trinnskatt, minstefradrag, personfradrag og trygdeavgift 2026</li>
+      <li>Finansdepartementet — utlånsforskriften (egenkapitalkrav, gjeldsgrad, stresstest)</li>
+      <li>Norges Bank — Pengepolitisk rapport og rentebeslutninger 2026</li>
+    </ul>
+    <p style="margin-top:16px; font-size:.78rem; color:rgba(255,255,255,.55);">Sist faglig oppdatert: juni 2026. Bygget som et privat prosjekt.</p>
+  </div>
+</footer>
+
+<script>
+'use strict';
+/* ============================================================
+   DATA — oppdater disse konstantene når satser endres årlig.
+   ============================================================ */
+const RENTER = {
+  husbankFlytende: 4.025,
+  husbankFast3: 4.688,
+  husbankFast5: 4.621,
+  husbankFast10: 4.496,
+  husbankFast20: 4.784,
+  kommunaltPaaslag: 0.25,
+  privatBankSnitt: 5.1,
+  stresstestPP: 3,
+  stresstestMin: 7
+};
+const PRIVATBANK = { egenkapitalkrav: 0.10, gjeldsgradMaks: 5 };
+const TILSKUDD = { minG: 2, maksG: 5.5, saerligMaksG: 7.5 };
+// G-multiplikatorer pr. husholdningstype, Bergen kommune (retningslinjer vedtatt 13.03.2025)
+const HUSHOLDNINGER = [
+  { adults:1, children:0, label:'1 voksen',                 tilskuddG:3.25, startlanG:4,    maksKjop:3200000 },
+  { adults:1, children:1, label:'1 voksen + 1 barn',         tilskuddG:4.25, startlanG:5,    maksKjop:3450000 },
+  { adults:1, children:2, label:'1 voksen + 2 barn',         tilskuddG:4.75, startlanG:5.75, maksKjop:4100000 },
+  { adults:1, children:3, label:'1 voksen + 3 eller flere barn', tilskuddG:5.25, startlanG:6.25, maksKjop:4100000 },
+  { adults:2, children:0, label:'2 voksne',                  tilskuddG:4,    startlanG:5.5,  maksKjop:3200000 },
+  { adults:2, children:1, label:'2 voksne + 1 barn',         tilskuddG:5,    startlanG:7,    maksKjop:3450000 },
+  { adults:2, children:2, label:'2 voksne + 2 barn',         tilskuddG:5.5,  startlanG:7.75, maksKjop:4100000 },
+  { adults:2, children:3, label:'2 voksne + 3 eller flere barn', tilskuddG:6, startlanG:8.25, maksKjop:4100000 },
+];
+const TAX2026 = {
+  personfradrag: 114540,
+  minstefradragRate: 0.46,
+  minstefradragMax: 95700,
+  trygdeavgift: 0.076,
+  alminneligSats: 0.22,
+  trinnskatt: [
+    { fra:0,       til:226100,   sats:0     },
+    { fra:226100,  til:318300,   sats:0.017 },
+    { fra:318300,  til:725050,   sats:0.04  },
+    { fra:725050,  til:980100,   sats:0.137 },
+    { fra:980100,  til:1467200,  sats:0.168 },
+    { fra:1467200, til:Infinity, sats:0.178 }
+  ]
+};
+const PALETTE = {
+  fjord900:'#11272D', fjord700:'#1F454E', fjord600:'#2C5C66',
+  ochre:'#C68A35', ochre2:'#D9A24E', brick:'#9C4632', moss:'#52734F', line:'#D9D1BD'
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let state = {
+  adults: 2,
+  children: 0,
+  persons: [
+    { periode:'aar', type:'brutto', belop:450000, timer:37.5 },
+    { periode:'aar', type:'brutto', belop:380000, timer:37.5 }
+  ],
+  annenInntekt: 0,
+  kjopesum: 3500000,
+  egenkapital: 150000,
+  annenGjeld: 50000,
+  nedbetalingstid: 30,
+  laanetype: 'startlan_ordinaert',
+  rentetype: 'flytende',
+  rente: 4.28,
+  G: 136549,
+  livsopphold: 15000,
+  timerUkeGlobal: 37.5
+};
+let renteManueltEndret = false;
+
+/* ============================================================
+   BEREGNINGER
+   ============================================================ */
+function formatKr(n){
+  if(!isFinite(n)) return '–';
+  return Math.round(n).toLocaleString('nb-NO') + ' kr';
+}
+function formatPct(n, dec){
+  if(!isFinite(n)) return '–';
+  return n.toLocaleString('nb-NO', {minimumFractionDigits:dec||1, maximumFractionDigits:dec||1}) + ' %';
+}
+function annualFromInput(amount, periode, timerUke){
+  switch(periode){
+    case 'aar': return amount;
+    case 'mnd': return amount*12;
+    case 'uke': return amount*52;
+    case 'time': return amount*timerUke*52;
+    default: return amount;
+  }
+}
+function beregnTrinnskatt(personinntekt){
+  let sum=0;
+  for(const t of TAX2026.trinnskatt){
+    if(personinntekt > t.fra){
+      sum += (Math.min(personinntekt, t.til) - t.fra) * t.sats;
+    }
+  }
+  return sum;
+}
+function nettoFraBrutto(bruttoAar){
+  if(bruttoAar<=0) return {brutto:0, netto:0, skatt:0, sats:0};
+  const minstefradrag = Math.min(TAX2026.minstefradragRate*bruttoAar, TAX2026.minstefradragMax);
+  const alminneligGrunnlag = Math.max(0, bruttoAar - minstefradrag - TAX2026.personfradrag);
+  const skattAlminnelig = TAX2026.alminneligSats * alminneligGrunnlag;
+  const trinnskatt = beregnTrinnskatt(bruttoAar);
+  const trygdeavgift = TAX2026.trygdeavgift * bruttoAar;
+  const totalSkatt = skattAlminnelig + trinnskatt + trygdeavgift;
+  return { brutto:bruttoAar, netto:bruttoAar-totalSkatt, skatt:totalSkatt, sats:totalSkatt/bruttoAar };
+}
+function bruttoFraNetto(nettoAar){
+  let lo=0, hi=25000000;
+  for(let i=0;i<60;i++){
+    const mid=(lo+hi)/2;
+    if(nettoFraBrutto(mid).netto < nettoAar) lo=mid; else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+function terminbelop(principal, rentePct, ar){
+  if(principal<=0 || ar<=0) return 0;
+  const r = rentePct/100/12;
+  const n = ar*12;
+  if(r===0) return principal/n;
+  return principal * r / (1 - Math.pow(1+r, -n));
+}
+function finnHusholdning(adults, children){
+  const c = children>=3?3:children;
+  return HUSHOLDNINGER.find(h=>h.adults===adults && h.children===c) || HUSHOLDNINGER[4];
+}
+function personAnnualBrutto(p){
+  const annualInput = annualFromInput(p.belop||0, p.periode, p.timer||37.5);
+  return p.type==='netto' ? bruttoFraNetto(annualInput) : annualInput;
+}
+function suggestedRente(laanetype, rentetype){
+  if(laanetype==='privat') return RENTER.privatBankSnitt;
+  const base = { flytende:RENTER.husbankFlytende, fast3:RENTER.husbankFast3, fast5:RENTER.husbankFast5,
+                 fast10:RENTER.husbankFast10, fast20:RENTER.husbankFast20 }[rentetype];
+  return Math.round((base + RENTER.kommunaltPaaslag)*100)/100;
+}
+
+/* ============================================================
+   DOM REFERENCES
+   ============================================================ */
+const $ = (id)=>document.getElementById(id);
+const personsWrap = $('personsWrap');
+
+function renderPersonBlocks(){
+  personsWrap.innerHTML = '';
+  const n = state.adults;
+  for(let i=0;i<n;i++){
+    const p = state.persons[i];
+    const block = document.createElement('div');
+    block.className = 'person-block';
+    block.innerHTML = `
+      <h4><span class="n">${i+1}</span> Person ${i+1}</h4>
+      <div class="row">
+        <div class="field">
+          <label class="fl">Lønnsperiode</label>
+          <div class="seg seg-periode" data-idx="${i}">
+            <button data-v="time" class="${p.periode==='time'?'active':''}" aria-pressed="${p.periode==='time'}">Time</button>
+            <button data-v="uke" class="${p.periode==='uke'?'active':''}" aria-pressed="${p.periode==='uke'}">Uke</button>
+            <button data-v="mnd" class="${p.periode==='mnd'?'active':''}" aria-pressed="${p.periode==='mnd'}">Måned</button>
+            <button data-v="aar" class="${p.periode==='aar'?'active':''}" aria-pressed="${p.periode==='aar'}">År</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="fl">Beløp (kr)</label>
+          <input type="number" class="inp-belop" data-idx="${i}" value="${p.belop}" min="0" step="100">
+        </div>
+        <div class="field" style="max-width:160px;">
+          <label class="fl">Type</label>
+          <div class="seg seg-type" data-idx="${i}">
+            <button data-v="brutto" class="${p.type==='brutto'?'active':''}" aria-pressed="${p.type==='brutto'}">Brutto</button>
+            <button data-v="netto" class="${p.type==='netto'?'active':''}" aria-pressed="${p.type==='netto'}">Netto</button>
+          </div>
+        </div>
+        <div class="field timer-field" data-idx="${i}" style="max-width:130px; ${p.periode==='time'?'':'display:none;'}">
+          <label class="fl">Timer/uke</label>
+          <input type="number" class="inp-timer" data-idx="${i}" value="${p.timer}" min="1" max="60" step="0.5">
+        </div>
+      </div>
+      <div class="derived" data-idx="${i}"></div>
+    `;
+    personsWrap.appendChild(block);
+  }
+  wirePersonEvents();
+  updatePersonDerived();
+}
+
+function updatePersonDerived(){
+  for(let i=0;i<state.adults;i++){
+    const p = state.persons[i];
+    const annualInputVal = annualFromInput(p.belop||0, p.periode, p.timer||37.5);
+    let bruttoAar, nettoAar;
+    if(p.type==='brutto'){ bruttoAar = annualInputVal; nettoAar = nettoFraBrutto(bruttoAar).netto; }
+    else { nettoAar = annualInputVal; bruttoAar = bruttoFraNetto(nettoAar); }
+    const t = p.timer||37.5;
+    const div = personsWrap.querySelector(`.derived[data-idx="${i}"]`);
+    if(div){
+      div.innerHTML = `
+        <span>År: <b>${formatKr(bruttoAar)}</b> brutto</span>
+        <span>Måned: <b>${formatKr(bruttoAar/12)}</b></span>
+        <span>Uke: <b>${formatKr(bruttoAar/52)}</b></span>
+        <span>Time: <b>${formatKr(bruttoAar/(t*52))}</b></span>
+        <span style="color:var(--moss-600)">≈ Netto/år: <b>${formatKr(nettoAar)}</b></span>
+      `;
+    }
+  }
+}
+
+function setActiveBtn(container, activeBtn){
+  [...container.children].forEach(b=>{
+    const isActive = b===activeBtn;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function wirePersonEvents(){
+  personsWrap.querySelectorAll('.seg-periode button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = +btn.parentElement.dataset.idx;
+      state.persons[idx].periode = btn.dataset.v;
+      const timerField = personsWrap.querySelector(`.timer-field[data-idx="${idx}"]`);
+      if(timerField) timerField.style.display = (btn.dataset.v==='time') ? '' : 'none';
+      setActiveBtn(btn.parentElement, btn);
+      renderAll();
+    });
+  });
+  personsWrap.querySelectorAll('.seg-type button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = +btn.parentElement.dataset.idx;
+      state.persons[idx].type = btn.dataset.v;
+      setActiveBtn(btn.parentElement, btn);
+      renderAll();
+    });
+  });
+  personsWrap.querySelectorAll('.inp-belop').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      state.persons[+inp.dataset.idx].belop = parseFloat(inp.value)||0;
+      renderAll();
+    });
+  });
+  personsWrap.querySelectorAll('.inp-timer').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const idx = +inp.dataset.idx;
+      state.persons[idx].timer = parseFloat(inp.value)||37.5;
+      state.persons[idx]._timerTouched = true;
+      renderAll();
+    });
+  });
+}
+
+/* ---------- Segmented controls: husholdning ---------- */
+function wireSeg(containerId, onPick){
+  const el = $(containerId);
+  el.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      setActiveBtn(el, btn);
+      onPick(btn.dataset.v);
+    });
+  });
+}
+wireSeg('segAdults', (v)=>{
+  state.adults = +v;
+  renderPersonBlocks();
+  renderAll();
+});
+wireSeg('segChildren', (v)=>{ state.children = v==='3' ? 3 : +v; renderAll(); });
+wireSeg('segRente', (v)=>{
+  state.rentetype = v;
+  if(!renteManueltEndret){
+    state.rente = suggestedRente(state.laanetype, state.rentetype);
+    $('renteSlider').value = state.rente;
+  }
+  renderAll();
+});
+
+document.querySelectorAll('input[name="laanetype"]').forEach(r=>{
+  r.addEventListener('change', ()=>{
+    state.laanetype = r.value;
+    if(!renteManueltEndret){
+      state.rente = suggestedRente(state.laanetype, state.rentetype);
+      $('renteSlider').value = state.rente;
+    }
+    renderAll();
+  });
+});
+
+/* ---------- Simple numeric inputs ---------- */
+function bindNumber(id, key, parse){
+  $(id).addEventListener('input', (e)=>{
+    state[key] = (parse||parseFloat)(e.target.value) || 0;
+    renderAll();
+  });
+}
+bindNumber('annenInntekt','annenInntekt');
+bindNumber('kjopesum','kjopesum');
+bindNumber('egenkapital','egenkapital');
+bindNumber('annenGjeld','annenGjeld');
+bindNumber('gVerdi','G');
+bindNumber('livsopphold','livsopphold');
+$('timerUkeGlobal').addEventListener('input', (e)=>{
+  state.timerUkeGlobal = parseFloat(e.target.value)||37.5;
+  state.persons.forEach(p=>{ if(!p._timerTouched) p.timer = state.timerUkeGlobal; });
+  renderPersonBlocks();
+  renderAll();
+});
+$('nedbetalingstid').addEventListener('input', (e)=>{
+  state.nedbetalingstid = +e.target.value;
+  $('nedbetalingstidVal').textContent = state.nedbetalingstid;
+  renderAll();
+});
+$('renteSlider').addEventListener('input', (e)=>{
+  state.rente = +e.target.value;
+  renteManueltEndret = true;
+  $('renteVal').textContent = state.rente.toLocaleString('nb-NO',{minimumFractionDigits:2,maximumFractionDigits:2});
+  renderAll();
+});
+
+/* ---------- Presets ---------- */
+document.querySelectorAll('[data-preset]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const v = btn.dataset.preset;
+    if(v==='solo'){
+      state.adults=1; state.children=0;
+      state.persons[0] = {periode:'aar', type:'brutto', belop:390000, timer:37.5};
+      state.kjopesum=2600000; state.egenkapital=80000; state.annenGjeld=120000;
+      state.laanetype='startlan_forstegang';
+    } else if(v==='par0'){
+      state.adults=2; state.children=0;
+      state.persons[0]={periode:'aar', type:'brutto', belop:420000, timer:37.5};
+      state.persons[1]={periode:'aar', type:'brutto', belop:400000, timer:37.5};
+      state.kjopesum=3800000; state.egenkapital=300000; state.annenGjeld=80000;
+      state.laanetype='privat';
+    } else if(v==='par1'){
+      state.adults=2; state.children=1;
+      state.persons[0]={periode:'aar', type:'brutto', belop:380000, timer:37.5};
+      state.persons[1]={periode:'mnd', type:'brutto', belop:24000, timer:37.5};
+      state.kjopesum=3300000; state.egenkapital=60000; state.annenGjeld=20000;
+      state.laanetype='startlan_tilskudd';
+    }
+    renteManueltEndret = false;
+    $('segAdults').querySelectorAll('button').forEach(b=>{
+      const on = +b.dataset.v===state.adults;
+      b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
+    });
+    $('segChildren').querySelectorAll('button').forEach(b=>{
+      const on = (b.dataset.v==='3'?3:+b.dataset.v)===state.children;
+      b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
+    });
+    document.querySelector(`input[name="laanetype"][value="${state.laanetype}"]`).checked = true;
+    state.rente = suggestedRente(state.laanetype, state.rentetype);
+    $('renteSlider').value = state.rente;
+    $('kjopesum').value = state.kjopesum;
+    $('egenkapital').value = state.egenkapital;
+    $('annenGjeld').value = state.annenGjeld;
+    renderPersonBlocks();
+    renderAll();
+  });
+});
+
+/* ============================================================
+   CHARTS
+   ============================================================ */
+let chartInntekt, chartRente, chartManedlig;
+function chartDefaults(){
+  Chart.defaults.font.family = "IBM Plex Sans, system-ui, sans-serif";
+  Chart.defaults.color = '#5B6168';
+}
+chartDefaults();
+
+function buildCharts(){
+  chartInntekt = new Chart($('chartInntekt'), {
+    type:'bar',
+    data:{ labels:['Minimum (anslått behov)','Din husholdningsinntekt','Grense — tilskudd','Grense — ordinært startlån'],
+      datasets:[{ data:[0,0,0,0],
+        backgroundColor:[PALETTE.moss, PALETTE.ochre, PALETTE.fjord600, PALETTE.fjord900],
+        borderRadius:6, barThickness:26 }]},
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>formatKr(c.raw)+' kr/år' } } },
+      scales:{ x:{ ticks:{ callback:(v)=>(v/1000)+'k' }, grid:{color:'#E7E1D2'} }, y:{ grid:{display:false} } } }
+  });
+  chartRente = new Chart($('chartRente'), {
+    type:'line',
+    data:{ labels:[], datasets:[
+      { label:'Terminbeløp / mnd', data:[], borderColor:PALETTE.fjord700, backgroundColor:'rgba(31,69,78,.12)', fill:true, tension:.25, pointRadius:0, borderWidth:3 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>formatKr(c.raw)+' kr/mnd' } } },
+      scales:{ x:{ title:{display:true, text:'Rente %'}, grid:{display:false} },
+               y:{ ticks:{ callback:(v)=>(v/1000)+'k' }, grid:{color:'#E7E1D2'} } } }
+  });
+  chartManedlig = new Chart($('chartManedlig'), {
+    type:'bar',
+    data:{ labels:['Privat bank','Startlån, flytende','Startlån, valgt fastrente','Startlån + tilskudd'],
+      datasets:[{ data:[0,0,0,0], backgroundColor:[PALETTE.brick, PALETTE.fjord600, PALETTE.fjord900, PALETTE.moss], borderRadius:6 }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>formatKr(c.raw)+' kr/mnd' } } },
+      scales:{ y:{ ticks:{ callback:(v)=>(v/1000)+'k' }, grid:{color:'#E7E1D2'} }, x:{ grid:{display:false} } } }
+  });
+}
+
+/* ============================================================
+   MAIN RENDER
+   ============================================================ */
+function renderAll(){
+  // ---- Inntekt ----
+  const bruttoListe = state.persons.slice(0,state.adults).map(personAnnualBrutto);
+  const sumBrutto = bruttoListe.reduce((a,b)=>a+b,0) + (state.annenInntekt||0);
+  const sumNetto = state.persons.slice(0,state.adults).reduce((a,p)=>{
+    const annualInputVal = annualFromInput(p.belop||0, p.periode, p.timer||37.5);
+    const netto = p.type==='netto' ? annualInputVal : nettoFraBrutto(annualInputVal).netto;
+    return a+netto;
+  },0) + (state.annenInntekt||0);
+
+  $('sumInntektBrutto').textContent = formatKr(sumBrutto);
+  $('sumInntektNetto').textContent = '≈ ' + formatKr(sumNetto) + ' netto/år (estimat, 2026-satser)';
+  updatePersonDerived();
+
+  // ---- Husholdning ----
+  const hh = finnHusholdning(state.adults, state.children);
+  $('husholdLabel').textContent = hh.label;
+  $('chartHHType').textContent = hh.label;
+  const tilskuddGrense = state.G * hh.tilskuddG;
+  const startlanGrense = state.G * hh.startlanG;
+
+  // ---- Egenkapital % ----
+  const ekPct = state.kjopesum>0 ? (state.egenkapital/state.kjopesum*100) : 0;
+  $('egenkapitalPct').textContent = '= ' + formatPct(ekPct,1) + ' av kjøpesum';
+
+  // ---- Lånebeløp + tilskudd ----
+  let estimertTilskudd = 0;
+  if(state.laanetype==='startlan_tilskudd' && sumBrutto <= tilskuddGrense){
+    const trinnAndel = startlanGrense>tilskuddGrense ? Math.max(0, 1-(sumBrutto/tilskuddGrense)) : 0.5;
+    estimertTilskudd = state.G * (TILSKUDD.minG + (TILSKUDD.maksG-TILSKUDD.minG)*Math.min(1,trinnAndel+0.4));
+  }
+  const laanebelopValgt = Math.max(0, state.kjopesum - state.egenkapital - estimertTilskudd);
+  const belaningsgrad = state.kjopesum>0 ? (laanebelopValgt/state.kjopesum*100) : 0;
+
+  // ---- Terminbeløp valgt scenario ----
+  const terminValgt = terminbelop(laanebelopValgt, state.rente, state.nedbetalingstid);
+
+  // ---- Statlinjer ----
+  const maksKjopesumPrivat = Math.min(
+    state.egenkapital>0 ? state.egenkapital/PRIVATBANK.egenkapitalkrav : 0,
+    Math.max(0, PRIVATBANK.gjeldsgradMaks*sumBrutto - state.annenGjeld + state.egenkapital)
+  );
+  $('statMaksPrivat').textContent = formatKr(maksKjopesumPrivat);
+  $('statMaksStartlan').textContent = formatKr(hh.maksKjop);
+  $('statTilskudd').textContent = (state.laanetype==='startlan_tilskudd')
+    ? (estimertTilskudd>0 ? ('≈ ' + formatKr(estimertTilskudd)) : 'Sannsynligvis ikke aktuelt')
+    : '– (velg «startlån + tilskudd»)';
+  $('statBelaning').textContent = formatPct(belaningsgrad,0);
+
+  // ---- Krav-sjekk for valgt lånetype ----
+  let statusKey = 'warn', statusTxt = '';
+  const gjeldsgradOK = (laanebelopValgt + state.annenGjeld) <= PRIVATBANK.gjeldsgradMaks*sumBrutto;
+  const egenkapitalOK10 = state.kjopesum>0 ? (state.egenkapital/state.kjopesum) >= PRIVATBANK.egenkapitalkrav : false;
+  const egenkapitalOK5 = state.kjopesum>0 ? (state.egenkapital/state.kjopesum) >= 0.05 : false;
+  const innenforTilskuddGrense = sumBrutto <= tilskuddGrense;
+  const innenforStartlanGrense = sumBrutto <= startlanGrense;
+  const innenforMaksKjop = state.kjopesum <= hh.maksKjop*1.10;
+
+  if(state.laanetype==='privat'){
+    statusKey = (gjeldsgradOK && egenkapitalOK10) ? 'ok' : 'bad';
+    statusTxt = statusKey==='ok' ? 'Ser ut til å være innenfor utlånsforskriftens hovedregler.' : 'Du dekker trolig ikke kravene til egenkapital (10 %) og/eller gjeldsgrad (5×) i privat bank ennå.';
+  } else if(state.laanetype==='startlan_forstegang'){
+    statusKey = (innenforStartlanGrense && egenkapitalOK5 && innenforMaksKjop) ? 'ok' : 'warn';
+    statusTxt = statusKey==='ok' ? 'Ser ut til å være i målgruppen for startlån til førstegangsetablerere.' : 'Sjekk særlig egenkapital (min. 5 %) og kjøpesum mot kommunens tak.';
+  } else if(state.laanetype==='startlan_tilskudd'){
+    statusKey = innenforTilskuddGrense ? 'ok' : (innenforStartlanGrense ? 'warn' : 'bad');
+    statusTxt = innenforTilskuddGrense ? 'Inntekten er under grensen hvor tilskudd kan bli aktuelt — endelig tildeling avgjøres individuelt.' :
+                innenforStartlanGrense ? 'Inntekten er over tilskuddsgrensen, men trolig innenfor ordinært startlån.' :
+                'Inntekten ser ut til å overstige Bergens veiledende grenser for startlån i denne husholdningstypen.';
+  } else { // startlan_ordinaert
+    statusKey = innenforStartlanGrense && innenforMaksKjop ? 'ok' : (innenforStartlanGrense ? 'warn' : 'bad');
+    statusTxt = innenforStartlanGrense ? (innenforMaksKjop ? 'Ser ut til å være innenfor inntektsgrense og kjøpesumstak for ordinært startlån.' : 'Inntekten er innenfor grensen, men kjøpesummen ser høy ut for denne husholdningstypen.') :
+                'Inntekten ser ut til å overstige Bergens veiledende inntektsgrense for ordinært startlån.';
+  }
+
+  // ---- Finansieringsbevis-kort ----
+  $('fbInntekt').textContent = formatKr(sumBrutto);
+  $('fbKjopesum').textContent = formatKr(state.kjopesum);
+  $('fbLaan').textContent = formatKr(laanebelopValgt);
+  $('fbTermin').textContent = formatKr(terminValgt) + ' /mnd';
+  $('fbStatusLine').textContent = statusTxt;
+  const sealIcon = $('sealIcon'), topDot = $('topDot'), topStatusText = $('topStatusText');
+  const colors = { ok:PALETTE.moss, warn:PALETTE.ochre, bad:PALETTE.brick };
+  const icons = { ok:'✓', warn:'!', bad:'×' };
+  const labels = { ok:'Sannsynlig OK', warn:'Grensetilfelle', bad:'Trolig over grensen' };
+  sealIcon.style.color = colors[statusKey]; sealIcon.textContent = icons[statusKey];
+  topDot.style.background = colors[statusKey];
+  topStatusText.textContent = labels[statusKey];
+
+  // ---- Chart: Inntekt min/maks ----
+  const minimumInntektPaaArs = (terminValgt*12) + (state.livsopphold*12);
+  chartInntekt.data.datasets[0].data = [minimumInntektPaaArs, sumBrutto, tilskuddGrense, startlanGrense];
+  chartInntekt.update();
+
+  // ---- Chart: Renteeffekt ----
+  const rentePunkter = [];
+  const terminPunkter = [];
+  for(let r=0.5; r<=9; r+=0.5){ rentePunkter.push(r.toFixed(1)); terminPunkter.push(terminbelop(laanebelopValgt, r, state.nedbetalingstid)); }
+  chartRente.data.labels = rentePunkter;
+  chartRente.data.datasets[0].data = terminPunkter;
+  const stressRate = Math.max(state.rente+RENTER.stresstestPP, RENTER.stresstestMin);
+  chartRente.options.plugins.tooltip.callbacks.label = (c)=>formatKr(c.raw)+' kr/mnd ved '+c.label+' %';
+  chartRente.update();
+
+  // ---- Chart + tabell: Sammenligning av låneformer ----
+  const lan = state.kjopesum - state.egenkapital;
+  const renteFastValgt = { fast3:RENTER.husbankFast3, fast5:RENTER.husbankFast5, fast10:RENTER.husbankFast10, fast20:RENTER.husbankFast20 }[state.rentetype] || RENTER.husbankFast5;
+  const scenarier = [
+    { navn:'Privat bank', rente:RENTER.privatBankSnitt, lan:Math.max(0,lan), ok: egenkapitalOK10 && gjeldsgradOK },
+    { navn:'Startlån, flytende', rente:RENTER.husbankFlytende+RENTER.kommunaltPaaslag, lan:Math.max(0,lan), ok: innenforStartlanGrense },
+    { navn:'Startlån, fast ('+state.rentetype.replace('fast','')+' år)', rente:renteFastValgt+RENTER.kommunaltPaaslag, lan:Math.max(0,lan), ok: innenforStartlanGrense },
+    { navn:'Startlån + tilskudd', rente:RENTER.husbankFlytende+RENTER.kommunaltPaaslag, lan:Math.max(0,lan-estimertTilskudd), ok: innenforTilskuddGrense }
+  ];
+  const terminScenarier = scenarier.map(s=>terminbelop(s.lan, s.rente, state.nedbetalingstid));
+  chartManedlig.data.datasets[0].data = terminScenarier;
+  chartManedlig.update();
+
+  const tbody = document.querySelector('#cmpTable tbody');
+  tbody.innerHTML = scenarier.map((s,i)=>`
+    <tr class="${s.ok?'best':''}">
+      <td>${s.navn}</td>
+      <td class="num">${formatPct(s.rente,2)}</td>
+      <td class="num">${formatKr(s.lan)}</td>
+      <td class="num">${formatKr(terminScenarier[i])}</td>
+      <td>${s.ok ? '✅ Trolig mulig' : '⚠️ Sjekk grenser'}</td>
+    </tr>`).join('');
+
+  // ---- Sjekkliste ----
+  const items = [];
+  items.push({ ok: state.adults<=2, label:'Søkere', txt: state.adults===2 ? 'To voksne søker sammen (kun ektefelle/samboer/partner kan stå sammen).' : 'Én søker.' });
+  items.push({ ok: innenforStartlanGrense || state.laanetype==='privat', label:'Inntektsgrense', txt: `Husholdningsinntekt ${formatKr(sumBrutto)} mot grense ${formatKr(startlanGrense)} for ${hh.label.toLowerCase()}.` });
+  if(state.laanetype==='startlan_tilskudd'){
+    items.push({ ok: innenforTilskuddGrense, label:'Tilskuddsgrense', txt: `Mot grense ${formatKr(tilskuddGrense)}. Tilskudd er strengt behovsprøvd og innvilges individuelt.` });
+  }
+  if(state.laanetype==='startlan_forstegang'){
+    items.push({ ok: egenkapitalOK5, label:'Egenkapital ≥ 5 %', txt:`Du har ${formatPct(ekPct,1)} — kravet er minst 5 %.` });
+    items.push({ ok:true, label:'Avslag i minst 3 banker', txt:'Må dokumenteres med lånetilbud/avslag fra minst tre vanlige banker.' });
+  }
+  if(state.laanetype==='privat'){
+    items.push({ ok: egenkapitalOK10, label:'Egenkapital ≥ 10 %', txt:`Du har ${formatPct(ekPct,1)} — kravet i utlånsforskriften er minst 10 %.` });
+    items.push({ ok: gjeldsgradOK, label:'Gjeldsgrad ≤ 5× inntekt', txt:`Lån + annen gjeld: ${formatKr(lan+state.annenGjeld)} mot tak ${formatKr(sumBrutto*5)}.` });
+    const stressOk = terminbelop(Math.max(0,lan), stressRate, state.nedbetalingstid)*12 + state.livsopphold*12 <= sumNetto;
+    items.push({ ok: stressOk, label:'Stresstest (+3 pp / min. 7 %)', txt:`Ved ${formatPct(stressRate,2)} rente blir terminbeløpet ${formatKr(terminbelop(Math.max(0,lan), stressRate, state.nedbetalingstid))} kr/mnd.` });
+  } else {
+    items.push({ ok: innenforMaksKjop, label:'Maks kjøpesum/lånetak', txt:`Kjøpesum ${formatKr(state.kjopesum)} mot kommunens veiledende tak ${formatKr(hh.maksKjop)} (kan overstiges med ca. 10 %).` });
+  }
+  items.push({ ok:true, label:'Bosted', txt:'Boligen må ligge i Bergen kommune, være nøktern og tilpasset husstanden.' });
+  items.push({ ok:true, label:'Alder og bosetting', txt:'Søker(ne) må være over 18 år og varig bosatt i Norge med innlevert skattemelding.' });
+
+  $('checklist').innerHTML = items.map(it=>`
+    <li><span class="ic ${it.ok?'ok':'warn'}">${it.ok?'✓':'!'}</span>
+      <span class="txt"><b>${it.label}</b><span>${it.txt}</span></span></li>`).join('');
+
+  // ---- Avsnitt 3: renteforslag-hint ----
+  $('renteForslagHint').textContent = state.laanetype==='privat'
+    ? 'Forhåndsutfylt med dagens landsgjennomsnitt for boliglån i privat bank. Innhent egne tilbud — renten varierer mye mellom banker.'
+    : 'Forhåndsutfylt med Husbankens valgte rentetype + Bergens kommunale påslag (0,25 pp). Dra i glidebryteren for å teste andre nivåer.';
+}
+
+/* ---------- Render-bro for slider/label uten egen logikk over ---------- */
+$('renteVal').textContent = state.rente.toLocaleString('nb-NO',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+try{
+  renderPersonBlocks();
+  buildCharts();
+  renderAll();
+} catch(err){
+  console.error('Initialiseringsfeil i kalkulatoren:', err);
+  document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+}
+
+/* ---------- Reveal-on-scroll ---------- */
+try{
+  if('IntersectionObserver' in window){
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, {threshold:.12});
+    document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+  }
+} catch(err){
+  document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+}
+</script>
+</body>
+</html>
