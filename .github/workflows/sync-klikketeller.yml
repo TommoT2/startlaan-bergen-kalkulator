@@ -1,0 +1,42 @@
+name: Synkroniser klikketeller
+
+# Leser gjeldende antall klikk på "Åpne Finansportalen"-lenken (via Abacus,
+# en gratis, nøkkelfri telle-API: https://abacus.jasoncameron.dev) og skriver
+# tallet til finansportalen-klikk.txt i repoet. Bruker GET /get/... som KUN
+# leser verdien — teller aldri opp ved kjøring av denne jobben.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # hver dag kl. 06:00 UTC
+  workflow_dispatch: {}     # kan også kjøres manuelt fra "Actions"-fanen
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hent gjeldende tellerverdi (uten å telle et nytt klikk)
+        run: |
+          RESPONSE=$(curl -s "https://abacus.jasoncameron.dev/get/startlaan-bergen-kalkulator/finansportalen-klikk")
+          VERDI=$(echo "$RESPONSE" | grep -o '"value":[0-9-]*' | grep -o '[0-9-]*$')
+          if [ -z "$VERDI" ]; then
+            VERDI="0 (ingen klikk registrert ennå)"
+          fi
+          {
+            echo "Antall klikk videre til Finansportalen: $VERDI"
+            echo "Sist synkronisert: $(date -u +"%Y-%m-%d %H:%M UTC")"
+            echo ""
+            echo "(Automatisk generert av .github/workflows/sync-klikketeller.yml — ikke rediger manuelt.)"
+          } > finansportalen-klikk.txt
+
+      - name: Commit og push hvis endret
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add finansportalen-klikk.txt
+          git diff --cached --quiet || git commit -m "Oppdater klikketeller (automatisk)"
+          git diff --cached --quiet || git push
