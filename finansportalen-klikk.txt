@@ -1,0 +1,4 @@
+Antall klikk videre til Finansportalen: 0 (ingen klikk registrert ennå)
+Sist synkronisert: (venter på første kjøring av .github/workflows/sync-klikketeller.yml)
+
+(Automatisk generert — ikke rediger manuelt.)
