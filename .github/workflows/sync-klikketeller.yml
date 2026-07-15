@@ -21,8 +21,8 @@ jobs:
 
       - name: Hent gjeldende tellerverdi (uten å telle et nytt klikk)
         run: |
-          RESPONSE=$(curl -s "https://abacus.jasoncameron.dev/get/startlaan-bergen-kalkulator/finansportalen-klikk")
-          VERDI=$(echo "$RESPONSE" | grep -o '"value":[0-9-]*' | grep -o '[0-9-]*$')
+          RESPONSE=$(curl -s "https://abacus.jasoncameron.dev/get/startlaan-bergen-kalkulator/finansportalen-klikk" || true)
+          VERDI=$(echo "$RESPONSE" | grep -o '"value":[0-9-]*' | grep -o '[0-9-]*$' || true)
           if [ -z "$VERDI" ]; then
             VERDI="0 (ingen klikk registrert ennå)"
           fi
