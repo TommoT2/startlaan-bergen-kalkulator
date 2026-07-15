@@ -174,6 +174,15 @@ table.cmp th{ font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; 
 table.cmp td.num{ font-family:var(--font-mono); font-weight:600; }
 table.cmp tr.best td{ background:var(--moss-100); }
 table.cmp tr.current td{ box-shadow:inset 3px 0 0 var(--ochre-600); }
+@media (max-width:640px){
+  table.cmp thead{ display:none; }
+  table.cmp, table.cmp tbody{ display:block; width:100%; }
+  table.cmp tr{ display:block; margin-bottom:12px; border:1px solid var(--line); border-radius:10px; padding:4px 12px; background:#fff; }
+  table.cmp tr.best{ border-color:var(--moss-600); }
+  table.cmp td{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid var(--paper); text-align:right; }
+  table.cmp td:last-child{ border-bottom:none; }
+  table.cmp td::before{ content:attr(data-label); font-family:var(--font-body); font-weight:700; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); text-align:left; }
+}
 
 /* ---------- Checklist ---------- */
 ul.checklist{ list-style:none; margin:0; padding:0; display:grid; gap:8px; }
@@ -203,6 +212,13 @@ footer h3{ color:#fff; }
 
 .skip-anchor{ position:absolute; left:-9999px; }
 @media print{ .topbar, .hero{ display:none; } }
+@media (max-width:480px){
+  .fbevis .grid{ grid-template-columns:1fr; gap:12px; }
+  .statstrip{ grid-template-columns:1fr; }
+  .seg button{ padding:11px 14px; min-height:44px; }
+  input[type=range]{ height:28px; }
+  .wrap{ padding:0 16px; }
+}
 </style>
 </head>
 <body>
@@ -504,6 +520,24 @@ footer h3{ color:#fff; }
         <details class="gl"><summary>Grunnbeløpet (G)</summary><p>Et beløp som justeres av Stortinget hvert år 1. mai, og som mange offentlige grenser (som Bergens inntektsgrenser for startlån) er bygget opp av. Fra 1. mai 2026 er G = 136 549 kr.</p></details>
         <details class="gl"><summary>Flytende vs. fast rente</summary><p>Flytende rente endrer seg med markedet (hver 2. måned for Husbanken). Fast rente låses for en periode (3/5/10/20 år) og gir forutsigbarhet, men du kan ikke gå ut av avtalen før perioden er over.</p></details>
       </div>
+    </div>
+  </section>
+
+  <!-- ================= UAVHENGIG SAMMENLIGNING ================= -->
+  <section class="panel reveal" id="videre">
+    <div class="panel-head">
+      <div>
+        <div class="eyebrow">Neste steg</div>
+        <h2>Sammenlign faktiske banktilbud</h2>
+        <p>Denne siden viser deg hva som er mulig og hvilke krav som gjelder — men gir ingen konkrete lånetilbud. For å se hva bankene faktisk tilbyr akkurat nå, er Finansportalen (drevet av Forbrukerrådet) det mest uavhengige stedet å starte: ingen reklame, ingen provisjon til noen part, bare sammenlignbare tall fra alle banker, pålagt ved lov.</p>
+      </div>
+    </div>
+    <div class="card" style="display:flex; flex-wrap:wrap; gap:18px; align-items:center; justify-content:space-between;">
+      <div style="max-width:46ch;">
+        <h3 style="margin-bottom:6px;">Finansportalen.no — boliglån</h3>
+        <p style="margin:0; font-size:.88rem;">Vi tjener ingenting på denne lenken og mottar aldri opplysningene dine — den går rett til Forbrukerrådets egen side. Vi teller kun anonymt, samlet antall klikk her (ingen kobling til deg eller din bruk av kalkulatoren over), som en enkel test på om dette er nyttig nok til å bygge videre på.</p>
+      </div>
+      <a id="finansportalenLink" class="btn" href="https://www.finansportalen.no/lan/boliglan/" target="_blank" rel="noopener noreferrer" style="white-space:nowrap;">Åpne Finansportalen ↗</a>
     </div>
   </section>
 
@@ -1040,10 +1074,11 @@ function renderAll(){
   // ---- Chart + tabell: Sammenligning av låneformer ----
   const lan = state.kjopesum - state.egenkapital;
   const renteFastValgt = { fast3:RENTER.husbankFast3, fast5:RENTER.husbankFast5, fast10:RENTER.husbankFast10, fast20:RENTER.husbankFast20 }[state.rentetype] || RENTER.husbankFast5;
+  const fastPeriodeLabel = { fast3:'3', fast5:'5', fast10:'10', fast20:'20' }[state.rentetype] || '5';
   const scenarier = [
     { navn:'Privat bank', rente:RENTER.privatBankSnitt, lan:Math.max(0,lan), ok: egenkapitalOK10 && gjeldsgradOK },
     { navn:'Startlån, flytende', rente:RENTER.husbankFlytende+RENTER.kommunaltPaaslag, lan:Math.max(0,lan), ok: innenforStartlanGrense },
-    { navn:'Startlån, fast ('+state.rentetype.replace('fast','')+' år)', rente:renteFastValgt+RENTER.kommunaltPaaslag, lan:Math.max(0,lan), ok: innenforStartlanGrense },
+    { navn:'Startlån, fast ('+fastPeriodeLabel+' år)', rente:renteFastValgt+RENTER.kommunaltPaaslag, lan:Math.max(0,lan), ok: innenforStartlanGrense },
     { navn:'Startlån + tilskudd', rente:RENTER.husbankFlytende+RENTER.kommunaltPaaslag, lan:Math.max(0,lan-estimertTilskudd), ok: innenforTilskuddGrense }
   ];
   const terminScenarier = scenarier.map(s=>terminbelop(s.lan, s.rente, state.nedbetalingstid));
@@ -1053,11 +1088,11 @@ function renderAll(){
   const tbody = document.querySelector('#cmpTable tbody');
   tbody.innerHTML = scenarier.map((s,i)=>`
     <tr class="${s.ok?'best':''}">
-      <td>${s.navn}</td>
-      <td class="num">${formatPct(s.rente,2)}</td>
-      <td class="num">${formatKr(s.lan)}</td>
-      <td class="num">${formatKr(terminScenarier[i])}</td>
-      <td>${s.ok ? '✅ Trolig mulig' : '⚠️ Sjekk grenser'}</td>
+      <td data-label="Låneform">${s.navn}</td>
+      <td class="num" data-label="Rente">${formatPct(s.rente,2)}</td>
+      <td class="num" data-label="Lånebeløp">${formatKr(s.lan)}</td>
+      <td class="num" data-label="Mnd. terminbeløp">${formatKr(terminScenarier[i])}</td>
+      <td data-label="Status">${s.ok ? '✅ Trolig mulig' : '⚠️ Sjekk grenser'}</td>
     </tr>`).join('');
 
   // ---- Sjekkliste ----
@@ -1106,6 +1141,20 @@ try{
   console.error('Initialiseringsfeil i kalkulatoren:', err);
   document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
 }
+
+/* ---------- Anonym klikketeller for "videre til Finansportalen" ----------
+   Bruker Abacus (gratis, ingen nøkkel, ingen cookies/personopplysninger) til
+   å telle et rent antall klikk. Lenken åpner i ny fane (target=_blank), så
+   siden forblir åpen — tellingen kan aldri forsinke eller blokkere klikket. */
+(function(){
+  const fpLink = document.getElementById('finansportalenLink');
+  if(!fpLink) return;
+  fpLink.addEventListener('click', function(){
+    try{
+      fetch('https://abacus.jasoncameron.dev/hit/startlaan-bergen-kalkulator/finansportalen-klikk', { mode:'no-cors' });
+    }catch(e){ /* tellingen skal aldri kunne hindre lenken i å fungere */ }
+  });
+})();
 
 /* ---------- Reveal-on-scroll ---------- */
 try{
