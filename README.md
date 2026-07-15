@@ -62,6 +62,23 @@ The grant ("tilskudd") estimate in particular is a rough heuristic — Bergen
 kommune allocates it through an individual, discretionary assessment, not a
 formula. Treat it as a directional signal only.
 
+## The "onward to Finansportalen" click counter
+
+The page has one outbound link, to Forbrukerrådet's own independent rate
+comparison tool (Finansportalen). It earns nothing — it exists so users end
+up somewhere impartial for actual bank offers. Clicking it fires an anonymous
+hit to [Abacus](https://abacus.jasoncameron.dev), a free, keyless counting
+API — no cookies, no personal data, just an aggregate number. It never blocks
+or delays the click (the link opens in a new tab; the counter call is
+fire-and-forget).
+
+A scheduled GitHub Action (`.github/workflows/sync-klikketeller.yml`) reads
+that counter once a day (and on manual trigger from the Actions tab) and
+writes the current value into `finansportalen-klikk.txt` at the repo root —
+so the click count is visible as a plain file in the repo without needing any
+external dashboard or analytics account. The sync job only *reads* the
+counter (`/get/`), so it never inflates the number itself.
+
 ## Updating the figures each year
 
 Nearly every number that changes annually lives in one block near the top of
