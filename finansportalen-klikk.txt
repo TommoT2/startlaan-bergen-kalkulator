@@ -1,4 +1,4 @@
 Antall klikk videre til Finansportalen: 1
-Sist synkronisert: 2026-07-27 09:59 UTC
+Sist synkronisert: 2026-07-28 08:42 UTC
 
 (Automatisk generert av .github/workflows/sync-klikketeller.yml — ikke rediger manuelt.)
